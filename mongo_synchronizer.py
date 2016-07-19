@@ -43,6 +43,7 @@ class MongoSynchronizer(object):
         self._dst_username = kwargs.get('dst_username')
         self._dst_password = kwargs.get('dst_password')
         self._collections = kwargs.get('collections')
+        self._dst_dbname = kwargs.get('dst_dbname')
         self._ignore_indexes = kwargs.get('ignore_indexes')
         self._query = kwargs.get('query', None)
         self._start_optime = kwargs.get('start_optime')
@@ -70,7 +71,8 @@ class MongoSynchronizer(object):
                 self._dst_port,
                 username=self._dst_username,
                 password=self._dst_password,
-                w=self._w)
+                w=self._w,
+                auth_db=self._dst_dbname)
 
     def __del__(self):
         """ Destructor.
@@ -164,7 +166,7 @@ class MongoSynchronizer(object):
         while True:
             try:
                 n = 0
-                #docs = [] 
+                #docs = []
                 reqs = []
                 batchsize = 1000
                 cursor = self._src_mc[dbname][collname].find(filter=self._query,
@@ -178,7 +180,7 @@ class MongoSynchronizer(object):
                 for doc in cursor:
                     #docs.append(doc)
                     #if len(docs) == batchsize:
-                    #    self._dst_mc[dbname][collname].insert_many(docs)
+                    #    self._dst_mc[self._dst_dbname][collname].insert_many(docs)
                     #    docs = []
                     reqs.append(ReplaceOne({'_id': doc['_id']}, doc, upsert=True))
                     if len(reqs) == batchsize:
@@ -188,7 +190,7 @@ class MongoSynchronizer(object):
                     if n % 10000 == 0:
                         self._logger.info('[%s] \t %s.%s %d/%d (%.2f%%)' % (self._current_process_name, dbname, collname, n, count, float(n)/count*100))
                 #if len(docs) > 0:
-                #    self._dst_mc[dbname][collname].insert_many(docs)
+                #    self._dst_mc[self._dst_dbname][collname].insert_many(docs)
                 if len(reqs) > 0:
                     self._bulk_write(dbname, collname, reqs, ordered=False)
                 self._logger.info('[%s] \t %s.%s %d/%d (%.2f%%)' % (self._current_process_name, dbname, collname, n, count, float(n)/count*100))
@@ -262,7 +264,7 @@ class MongoSynchronizer(object):
                 doc = q.get(block=True, timeout=0.1)
                 while True:
                     try:
-                        self._dst_mc[dbname][collname].replace_one({'_id': doc['_id']}, doc, upsert=True)
+                        self._dst_mc[self._dst_dbname][collname].replace_one({'_id': doc['_id']}, doc, upsert=True)
                         break
                     except pymongo.errors.DuplicateKeyError as e:
                         # TODO
@@ -410,7 +412,7 @@ class MongoSynchronizer(object):
                 # create indexes before import documents, ignore 'background' option
                 #if 'background' in index:
                 #    options['background'] = index['background']
-                self._dst_mc[dbname][collname].create_index(format(keys), **options)
+                self._dst_mc[self._dst_dbname][collname].create_index(format(keys), **options)
 
     def _sync_oplog(self, oplog_start):
         """ Replay oplog.
@@ -524,16 +526,16 @@ class MongoSynchronizer(object):
         dbname = ns.split('.', 1)[0]
         if op == 'i': # insert
             collname = ns.split('.', 1)[1]
-            self._dst_mc[dbname][collname].insert_one(oplog['o'])
-            #self._dst_mc[dbname][collname].replace_one({'_id': oplog['o']['_id']}, oplog['o'], upsert=True)
+            self._dst_mc[self._dst_dbname][collname].insert_one(oplog['o'])
+            #self._dst_mc[self._dst_dbname][collname].replace_one({'_id': oplog['o']['_id']}, oplog['o'], upsert=True)
         elif op == 'u': # update
             collname = ns.split('.', 1)[1]
-            self._dst_mc[dbname][collname].update(oplog['o2'], oplog['o'])
+            self._dst_mc[self._dst_dbname][collname].update(oplog['o2'], oplog['o'])
         elif op == 'd': # delete
             collname = ns.split('.', 1)[1]
-            self._dst_mc[dbname][collname].delete_one(oplog['o'])
+            self._dst_mc[self._dst_dbname][collname].delete_one(oplog['o'])
         elif op == 'c': # command
-            self._dst_mc[dbname].command(oplog['o'])
+            self._dst_mc[self._dst_dbname].command(oplog['o'])
         elif op == 'n': # no-op
             pass
         else:
@@ -547,22 +549,22 @@ class MongoSynchronizer(object):
             if op['op'] == 'i':
                 dbname = op['ns'].split('.', 1)[0]
                 collname = op['ns'].split('.', 1)[1]
-                self._dst_mc[dbname][collname].insert_one(op['o'])
+                self._dst_mc[self._dst_dbname][collname].insert_one(op['o'])
             elif op['op'] == 'u':
                 dbname = op['ns'].split('.', 1)[0]
                 collname = op['ns'].split('.', 1)[1]
-                self._dst_mc[dbname][collname].update({'_id': op['o']['_id']}, op['o2'])
+                self._dst_mc[self._dst_dbname][collname].update({'_id': op['o']['_id']}, op['o2'])
             elif op['op'] == 'ur':
                 dbname = op['ns'].split('.', 1)[0]
                 collname = op['ns'].split('.', 1)[1]
-                self._dst_mc[dbname][collname].update({'_id': op['pk']['']}, op['m'])
+                self._dst_mc[self._dst_dbname][collname].update({'_id': op['pk']['']}, op['m'])
             elif op['op'] == 'd':
                 dbname = op['ns'].split('.', 1)[0]
                 collname = op['ns'].split('.', 1)[1]
-                self._dst_mc[dbname][collname].remove({'_id': op['o']['_id']})
+                self._dst_mc[self._dst_dbname][collname].remove({'_id': op['o']['_id']})
             elif op['op'] == 'c':
                 dbname = op['ns'].split('.', 1)[0]
-                self._dst_mc[dbname].command(op['o'])
+                self._dst_mc[self._dst_dbname].command(op['o'])
             elif op['op'] == 'n':
                 pass
             else:
@@ -600,7 +602,7 @@ class MongoSynchronizer(object):
         """
         while True:
             try:
-                self._dst_mc[dbname][collname].bulk_write(requests,
+                self._dst_mc[self._dst_dbname][collname].bulk_write(requests,
                         ordered=ordered,
                         bypass_document_validation=bypass_document_validation)
             except pymongo.errors.AutoReconnect:

@@ -20,6 +20,7 @@ g_dst = ''
 g_dst_username = ''
 g_dst_password = ''
 g_db = ''
+g_ddb = None
 g_coll = ''
 g_query = None
 g_start_optime = ''
@@ -29,7 +30,7 @@ g_logfilepath = ''
 def parse_args():
     """ Parse arguments.
     """
-    global g_src, g_src_engine, g_src_username, g_src_password, g_dst, g_dst_username, g_dst_password, g_db, g_coll, g_query, g_start_optime, g_write_concern, g_logfilepath
+    global g_src, g_src_engine, g_src_username, g_src_password, g_dst, g_dst_username, g_dst_password, g_db, g_ddb, g_coll, g_query, g_start_optime, g_write_concern, g_logfilepath
 
     parser = argparse.ArgumentParser(description='Sync data from a replica-set to another mongod/replica-set/sharded-cluster.')
     parser.add_argument('--from', nargs='?', required=True, help='the source must be a mongod instance of replica-set')
@@ -40,6 +41,7 @@ def parse_args():
     parser.add_argument('--dst-username', nargs='?', required=False, help='dst username')
     parser.add_argument('--dst-password', nargs='?', required=False, help='dst password')
     parser.add_argument('--db', nargs='?', required=False, help='the database to sync')
+    parser.add_argument('--ddb', nargs='?', required=True, help='destination database to sync')
     parser.add_argument('--coll', nargs='?', required=False, help='the collection to sync')
     parser.add_argument('--query', nargs='?', required=False, help='json query')
     parser.add_argument('--start-optime', nargs='?', required=False, help="start optime, a timestamp value in second for MongoDB or a 'YYYYmmddHHMMSS' value for TokuMX")
@@ -67,6 +69,8 @@ def parse_args():
         g_dst_password = args['dst_password']
     if args['db'] != None:
         g_db = args['db']
+    if args['ddb'] != None:
+        g_ddb = args['ddb']
     if args['coll'] != None:
         g_coll = args['coll']
     if args['query'] != None:
@@ -96,7 +100,7 @@ def logger_init(filepath):
         logger.addHandler(handler_stdout)
 
 def main():
-    global g_src, g_src_engine, g_src_username, g_src_password, g_dst, g_dst_username, g_dst_password, g_db, g_coll, g_query, g_start_optime, g_write_concern, g_logfilepath
+    global g_src, g_src_engine, g_src_username, g_src_password, g_dst, g_dst_username, g_dst_password, g_db, g_ddb, g_coll, g_query, g_start_optime, g_write_concern, g_logfilepath
 
     parse_args()
 
@@ -111,6 +115,7 @@ def main():
     logger.info('dst username    :  %s' % g_dst_username)
     logger.info('dst password    :  %s' % g_dst_password)
     logger.info('database        :  %s' % g_db)
+    logger.info('dst_database    :  %s' % g_ddb)
     logger.info('collection      :  %s' % g_coll)
     logger.info('query           :  %s' % g_query)
     logger.info('start optime    :  %s' % g_start_optime)
@@ -118,7 +123,7 @@ def main():
     logger.info('log filepath    :  %s' % g_logfilepath)
     logger.info('pymongo version :  %s' % pymongo.version)
     logger.info('================================================')
- 
+
     colls = []
     if g_db and g_coll:
         colls.append('%s.%s' % (g_db, g_coll))
@@ -135,7 +140,8 @@ def main():
             ignore_indexes=False,
             query=g_query,
             start_optime=g_start_optime,
-            write_concern=g_write_concern)
+            write_concern=g_write_concern,
+            dst_dbname=g_ddb)
     syncer.run()
     logger.info('exit')
 

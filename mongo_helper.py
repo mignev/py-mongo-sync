@@ -26,14 +26,19 @@ def mongo_connect(host, port, **kwargs):
                 read_preference=pymongo.read_preferences.ReadPreference.PRIMARY,
                 w=w)
     else:
+        # print(host)
+        # print(port)
         mc = pymongo.MongoClient(host, port, connect=True, serverSelectionTimeoutMS=3000, w=w)
     if username and password and auth_db:
+        # print(username)
+        # print(password)
+        # print(auth_db)
         mc[auth_db].authenticate(username, password)
     return mc
 
 def get_replica_set_name(host, port, **kwargs):
     """ Get replica set name.
-    Return a empty string if it's not a replica set. 
+    Return a empty string if it's not a replica set.
     Raise exception if execute failed.
     """
     try:

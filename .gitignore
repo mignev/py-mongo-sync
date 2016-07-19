@@ -38,3 +38,5 @@ nosetests.xml
 #
 tags
 log
+
+venv
