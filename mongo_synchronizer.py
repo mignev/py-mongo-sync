@@ -416,7 +416,12 @@ class MongoSynchronizer(object):
         """ Replay oplog.
         """
         try:
-            host, port = self._src_mc.primary
+            if self._src_mc.primary:
+                host, port = self._src_mc.primary
+            else:
+                host = self._src_host
+                port = self._src_port
+            
             self._logger.info('try to sync oplog from %s on %s:%d' % (oplog_start, host, port))
             cursor = self._src_mc['local']['oplog.rs'].find({'ts': {'$gte': oplog_start}}, cursor_type=pymongo.cursor.CursorType.TAILABLE, no_cursor_timeout=True)
             if cursor[0]['ts'] != oplog_start:
